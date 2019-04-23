@@ -18,6 +18,7 @@
 
 """
 
+import uuid
 import json
 import logging
 import queue
@@ -94,6 +95,8 @@ class StateMonitor(object):
                                   2: ("drive_state",),
                                   4: ("charge_state", "drive_state",)}
         self.old_values = dict([(r, {}) for r in self.requests])
+        self.trip_id = None
+        self.charge_id = None
 
         self.connection = teslajson.Connection(tesla_email, tesla_password)
         self.vehicle = self.connection.vehicles[a_tesla_car_idx]
@@ -108,34 +111,56 @@ class StateMonitor(object):
         """ True if the car is not in park, or is actively charging ... """
         shift = self.old_values['drive_state'].get('shift_state', '')
         old_speed = self.old_values['drive_state'].get('speed', 0) or 0
+        old_trip_id = self.trip_id
+        old_charge_id = self.charge_id
+        self.trip_id = None
+        self.charge_id = None
         if shift == "R" or shift == "D" or shift == "N" or old_speed > 0:
+            if old_trip_id:
+                self.trip_id = old_trip_id
+            else:
+                self.trip_id = str(uuid.uuid4())[:8]
             return "Driving"
-        if self.old_values['charge_state'].get('charging_state', '') in [
+        elif self.old_values['charge_state'].get('charging_state', '') in [
             "Charging", "Starting"]:
+            if old_charge_id:
+                self.charge_id = old_charge_id
+            else:
+                self.charge_id = str(uuid.uuid4())[:8]
             return "Charging"
         # If we just completed the charging, need to wait for voltage to
         # go down to zero too to avoid stale value in the DB.
-        if (self.old_values['charge_state'].get('charging_state', '') == "Complete" or self.old_values[
+        elif (self.old_values['charge_state'].get('charging_state', '') == "Complete" or self.old_values[
             'charge_state'].get('charging_state', '') == "Stopped") \
                 or self.old_values['charge_state'].get('charger_voltage', 0) > 0 or self.old_values['charge_state'].get('charger_actual_current', 0) > 0:
+            if old_charge_id:
+                self.charge_id = old_charge_id
+            else:
+                self.charge_id = str(uuid.uuid4())[:8]
             return "Charging"
 
-        if self.old_values['climate_state'].get('is_climate_on', False):
+        elif self.old_values['climate_state'].get('is_climate_on', False):
             return "Conditioning"
         # When it's about time to start charging, we want to perform
         # several polling attempts to ensure we catch it starting even
         # when scraping is otherwise disabled
-        if self.old_values['charge_state'].get('scheduled_charging_pending', False):
+        elif self.old_values['charge_state'].get('scheduled_charging_pending', False):
             scheduled_time = self.old_values['charge_state'].get('scheduled_charging_start_time', 0)
             if abs(scheduled_time - int(time.time())) <= 2:
+                if old_charge_id:
+                    self.charge_id = old_charge_id
+                else:
+                    self.charge_id = str(uuid.uuid4())[:8]
                 return "Charging"
 
         # If screen is on, the car is definitely not sleeping so no
         # harm in polling it as long as values are changing
-        if self.old_values['vehicle_state'].get('center_display_state', 0) != 0:
+        elif self.old_values['vehicle_state'].get('center_display_state', 0) != 0:
             return "Screen On"
 
-        return None
+        else:
+
+            return None
 
     def wake_up(self):
         """ mod """
@@ -201,6 +226,12 @@ class StateMonitor(object):
                 },
                 "time": int(timestamp) * 1000000,
             }
+            if self.trip_id:
+                json_body['tags']['trip_id'] = self.trip_id
+                logger.debug('Logging trip_id tag: %s' % self.trip_id)
+            elif self.charge_id:
+                json_body['tags']['charge_id'] = self.charge_id
+                logger.debug('Logging charge_id tag: %s' % self.charge_id)
             for element in sorted(result):
                 if element not in (
                         "timestamp", "gps_as_of", "left_temp_direction", "right_temp_direction", "charge_port_latch"):
