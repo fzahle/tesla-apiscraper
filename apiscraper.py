@@ -97,6 +97,7 @@ class StateMonitor(object):
         self.old_values = dict([(r, {}) for r in self.requests])
         self.trip_id = None
         self.charge_id = None
+        self.parked_id = None
 
         self.connection = teslajson.Connection(tesla_email, tesla_password)
         self.vehicle = self.connection.vehicles[a_tesla_car_idx]
@@ -113,8 +114,10 @@ class StateMonitor(object):
         old_speed = self.old_values['drive_state'].get('speed', 0) or 0
         old_trip_id = self.trip_id
         old_charge_id = self.charge_id
+        old_parked_id = self.parked_id
         self.trip_id = None
         self.charge_id = None
+        self.parked_id = None
         if shift == "R" or shift == "D" or shift == "N" or old_speed > 0:
             if old_trip_id:
                 self.trip_id = old_trip_id
@@ -159,7 +162,10 @@ class StateMonitor(object):
             return "Screen On"
 
         else:
-
+            if old_parked_id:
+                self.parked_id = old_parked_id
+            else:
+                self.parked_id = str(uuid.uuid4())[:8]
             return None
 
     def wake_up(self):
@@ -232,6 +238,9 @@ class StateMonitor(object):
             elif self.charge_id:
                 json_body['tags']['charge_id'] = self.charge_id
                 logger.debug('Logging charge_id tag: %s' % self.charge_id)
+            elif self.parked_id:
+                json_body['tags']['parked_id'] = self.parked_id
+                logger.debug('Logging parked_id tag: %s' % self.parked_id)
             for element in sorted(result):
                 if element not in (
                         "timestamp", "gps_as_of", "left_temp_direction", "right_temp_direction", "charge_port_latch"):
