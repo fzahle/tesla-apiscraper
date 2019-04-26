@@ -306,7 +306,10 @@ class StateMonitor(object):
 
             if not a_dry_run and len(json_body["fields"])>0:
                 logger.info("Writing Points to Influx: " + json_body["measurement"])
-                influx_client.write_points([json_body])
+                try:
+                    influx_client.write_points([json_body])
+                except:
+                    logger.warning('Failed writing points to Influx')
         return any_change
 
     def check_states(self, interval):
@@ -530,7 +533,10 @@ while True:
             }
         ]
         if not a_dry_run:
-            influx_client.write_points(state_body)
+                try:
+                    influx_client.write_points(state_body)
+                except:
+                    logger.warning('Failed writing vehicle_state to Influx')
         logger.debug("Car State: " + is_asleep +
                     " Poll Interval: " + str(poll_interval))
         if is_asleep == 'asleep' and a_allow_sleep == 1:
