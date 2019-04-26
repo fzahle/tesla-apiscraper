@@ -259,7 +259,7 @@ class StateMonitor(object):
                         a_lat = new_value
                     if element == "native_longitude":
                         a_long = new_value
-                    if new_value and old_value and ((element == "inside_temp") or (element == "outside_temp")):
+                    if new_value and old_value and ((element == "inside_temp") or (element == "outside_temp")) and not self.trip_id:
                         if abs(new_value - old_value) < 1.0:
                             new_value = old_value
                             logger.debug(
@@ -269,7 +269,7 @@ class StateMonitor(object):
                             (element == "est_battery_range") or
                             (element == "ideal_battery_range")
                     ):
-                        if abs(new_value - old_value) < 0.5:
+                        if abs(new_value - old_value) < 0.5 and not self.trip_id:
                             new_value = old_value
                             logger.debug(
                                 "Only minimal range difference received. No change registered to avoid wakelock.")
