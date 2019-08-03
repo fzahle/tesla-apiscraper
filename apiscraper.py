@@ -482,8 +482,9 @@ while True:
         val = req['value']
         logger.info("Command Queue not empty: " + command + ", value: " + str(val))
         if command == "scrape":
-            disableScrape = req['value']
+            car_active_state = "scrape request"
             if not disableScrape:
+                disableScrape = False 
                 logger.info("Resume Scrape requested")
                 poll_interval = 1
                 disabled_since = 0
@@ -500,6 +501,7 @@ while True:
                 logger.info("Waking the car up for the oneshot request")
                 state_monitor.wake_up()
                 resume = True
+
 
     if disableScrape is False or car_active_state is not None:
         busy_since = int(time.time())
